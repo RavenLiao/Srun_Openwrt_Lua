@@ -1,22 +1,20 @@
 #!/usr/bin/env lua
 
--- Define your constants
-username = ""
-password = ""
-n = '200'
-ac_id = '1'
-enc = "srun_bx1"
-Type = '1'
+-- 基本参数
+local username = ""
+local password = ""
+local base_url = "http://10.248.98.2"
 
--- Define your urls
-base_url = "http://10.248.98.2"
-get_challenge_api = base_url.."/cgi-bin/get_challenge?callback=a&username="..username
-srun_portal_api = base_url.."/cgi-bin/srun_portal"
+-- 其他参数，一般不需要调整
+local n = '200'
+local ac_id = '1'
+local enc = "srun_bx1"
+local Type = '1'
+local get_challenge_api = base_url .. "/cgi-bin/get_challenge?callback=a&username=" .. username
+local srun_portal_api = base_url .. "/cgi-bin/srun_portal"
+local UA ="User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36 Edg/116.0.1938.62"
 
--- Define the header
-UA = "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36 Edg/116.0.1938.62"
-
--- Define helper function to run any commands
+-- 执行外部命令的封装
 function execute(cmd)
     local handle = io.popen(cmd)
     local result = handle:read("*a")
@@ -24,12 +22,12 @@ function execute(cmd)
     return result
 end
 
--- Function to perform GET request via curl
+-- curl 开始 ··············································································
 function curl_get(url)
     return execute(string.format('curl -s -X GET -H "%s" "%s"', UA, url))
 end
 
-function curl_get_params(url,params)
+function curl_get_params(url, params)
     local kv_pairs = {}
     for k, v in pairs(params) do
         table.insert(kv_pairs, string.format('--data-urlencode "%s=%s"', k, v))
@@ -39,43 +37,57 @@ function curl_get_params(url,params)
     return execute(command)
 end
 
-function curl_get_params2(url,params)
-    local kv_pairs = {}
-    for k, v in pairs(params) do
-        table.insert(kv_pairs, string.format('%s=%s', k, v))
-    end
-    local p = table.concat(kv_pairs, "&")
-    local command = string.format(url.."?"..p)
-    return execute(command)
+-- curl 结束 ··············································································
+
+
+-- hash 开始 ··············································································
+function get_sha1(value)
+    return execute('echo -n "' .. value .. '" | openssl dgst -sha1'):gsub('%(stdin%)= ', ''):gsub('\n', ''):gsub('SHA1','')
 end
 
+function get_hmac_md5(password, token)
+    return execute('echo -n "' .. password .. '" | openssl dgst -md5 -hmac "' .. token .. '"'):gsub('%(stdin%)= ', ''):gsub('\n', ''):gsub('MD5', '')
+end
+
+-- hash 结束 ··············································································
+
+
+-- 定制的base64，与原版的最大差别应该是换掉了字符表_ALPHA
 function base64_encode(s)
     local _PADCHAR = "="
     local _ALPHA = "LVoJPiCN2R8G90yg+hmFHuacZ1OWMnrsSTXkYpUq/3dlbfKwv6xztjI7DeBE45QA"
-    local i=0
-    local b10=0
+    local i = 0
+    local b10 = 0
     local x = {}
     local imax = #s - #s % 3
     if #s == 0 then
         return s
     end
     for i = 1, imax, 3 do
-        b10 = (string.byte(s, i) * 2^16) + (string.byte(s, i + 1) * 2^8) + string.byte(s, i + 2)
-        table.insert(x, string.sub(_ALPHA, math.floor(b10 / 2^18) + 1, math.floor(b10 / 2^18) + 1))
-        table.insert(x, string.sub(_ALPHA, math.floor((b10 / 2^12) % 64) + 1, math.floor((b10 / 2^12) % 64) + 1))
-        table.insert(x, string.sub(_ALPHA, math.floor((b10 / 2^6) % 64) + 1, math.floor((b10 / 2^6) % 64) + 1))
+        b10 = (string.byte(s, i) * 2 ^ 16) + (string.byte(s, i + 1) * 2 ^ 8) + string.byte(s, i + 2)
+        table.insert(x, string.sub(_ALPHA, math.floor(b10 / 2 ^ 18) + 1, math.floor(b10 / 2 ^ 18) + 1))
+        table.insert(x, string.sub(_ALPHA, math.floor((b10 / 2 ^ 12) % 64) + 1, math.floor((b10 / 2 ^ 12) % 64) + 1))
+        table.insert(x, string.sub(_ALPHA, math.floor((b10 / 2 ^ 6) % 64) + 1, math.floor((b10 / 2 ^ 6) % 64) + 1))
         table.insert(x, string.sub(_ALPHA, math.floor(b10 % 64) + 1, math.floor(b10 % 64) + 1))
     end
-    i=imax
+    i = imax
     if #s - imax == 1 then
-        b10 = string.byte(s, i + 1) * 2^16
-        table.insert(x, string.sub(_ALPHA, math.floor(b10 / 2^18) + 1, math.floor(b10 / 2^18) + 1) .. string.sub(_ALPHA, math.floor((b10 / 2^12) % 64) + 1, math.floor((b10 / 2^12) % 64) + 1) .. _PADCHAR .. _PADCHAR)
+        b10 = string.byte(s, i + 1) * 2 ^ 16
+        table.insert(x,
+            string.sub(_ALPHA, math.floor(b10 / 2 ^ 18) + 1, math.floor(b10 / 2 ^ 18) + 1) ..
+            string.sub(_ALPHA, math.floor((b10 / 2 ^ 12) % 64) + 1, math.floor((b10 / 2 ^ 12) % 64) + 1) ..
+            _PADCHAR .. _PADCHAR)
     elseif #s - imax == 2 then
-        b10 = (string.byte(s, i + 1) * 2^16) + (string.byte(s, i + 2) * 2^8)
-        table.insert(x, string.sub(_ALPHA, math.floor(b10 / 2^18) + 1, math.floor(b10 / 2^18) + 1) .. string.sub(_ALPHA, math.floor((b10 / 2^12) % 64) + 1, math.floor((b10 / 2^12) % 64) + 1) .. string.sub(_ALPHA, math.floor((b10 / 2^6) % 64) + 1, math.floor((b10 / 2^6) % 64) + 1) .. _PADCHAR)
+        b10 = (string.byte(s, i + 1) * 2 ^ 16) + (string.byte(s, i + 2) * 2 ^ 8)
+        table.insert(x,
+            string.sub(_ALPHA, math.floor(b10 / 2 ^ 18) + 1, math.floor(b10 / 2 ^ 18) + 1) ..
+            string.sub(_ALPHA, math.floor((b10 / 2 ^ 12) % 64) + 1, math.floor((b10 / 2 ^ 12) % 64) + 1) ..
+            string.sub(_ALPHA, math.floor((b10 / 2 ^ 6) % 64) + 1, math.floor((b10 / 2 ^ 6) % 64) + 1) .. _PADCHAR)
     end
     return table.concat(x)
 end
+
+-- xencode 开始 ············································································································
 
 function ordat(msg, idx)
     if #msg >= idx then
@@ -88,7 +100,7 @@ function sencode(msg, key)
     local l = #msg
     local pwd = {}
     for i = 0, l - 1, 4 do
-        table.insert(pwd, ordat(msg, i+1) | ordat(msg, i + 2) << 8 | ordat(msg, i + 3) << 16 | ordat(msg, i + 4) << 24)
+        table.insert(pwd, ordat(msg, i + 1) | ordat(msg, i + 2) << 8 | ordat(msg, i + 3) << 16 | ordat(msg, i + 4) << 24)
     end
     if key then
         table.insert(pwd, l)
@@ -109,9 +121,9 @@ function lencode(msg, key)
     for i = 1, l do
         msg[i] = string.char(msg[i] & 0xff, msg[i] >> 8 & 0xff, msg[i] >> 16 & 0xff, msg[i] >> 24 & 0xff)
     end
-    
+
     if key then
-        return table.concat(msg):sub(1, ll+1)
+        return table.concat(msg):sub(1, ll + 1)
     end
     return table.concat(msg)
 end
@@ -119,7 +131,6 @@ end
 function py_idx(idx)
     return idx + 1
 end
-
 
 function get_xencode(msg, key)
     if msg == "" then
@@ -147,7 +158,7 @@ function get_xencode(msg, key)
         e = d >> 2 & 3
         p = 0
         while p < n do
-            y = pwd[py_idx(p+1)]
+            y = pwd[py_idx(p + 1)]
             m = (z >> 5 ~ y << 2) + ((y >> 3 ~ z << 4) ~ (d ~ y))
             m = m + (pwdk[py_idx((p & 3) ~ e)] ~ z)
             pwd[py_idx(p)] = pwd[py_idx(p)] + m & (0xEFB8D130 | 0x10472ECF)
@@ -164,45 +175,68 @@ function get_xencode(msg, key)
     return lencode(pwd, false)
 end
 
-function get_sha1(value)
-    return execute('echo -n "' .. value .. '" | openssl dgst -sha1'):gsub('%(stdin%)= ', ''):gsub('\n', ''):gsub('SHA1', '')
-end
+-- xencode 结束 ············································································································
 
-function get_hmac_md5(password, token)
-    return execute('echo -n "' .. password .. '" | openssl dgst -md5 -hmac "' .. token .. '"'):gsub('%(stdin%)= ', ''):gsub('\n', ''):gsub('MD5', '')
-end
-
-challengResult=curl_get(get_challenge_api)
-token = challengResult:match('"challenge":"(.-)"')
-client_ip = challengResult:match('"client_ip":"(.-)"')
-function get_info(ip)
+function get_info(ip, token)
     local info_temp = string.format(
         '{"username":"%s","password":"%s","ip":"%s","acid":"%s","enc_ver":"%s"}',
         username, password, ip, ac_id, enc
     )
-
-    -- Remove all spaces (if any)
     local i = info_temp:gsub(" ", "")
-
-    return i
+    return "{SRBX1}" .. base64_encode(get_xencode(i, token))
 end
 
-info=get_info(client_ip)
-info="{SRBX1}"..base64_encode(get_xencode(info,token))
-hmd5=get_hmac_md5(password,token)
-chkstr = token .. username .. token .. hmd5 .. token .. ac_id .. token .. client_ip .. token .. n .. token .. Type .. token .. info
-chksum=get_sha1(chkstr)
-srun_portal_params = {
-    callback = 'a',
-    action = 'login',
-    username = username,
-    password = '{MD5}' .. hmd5,
-    ac_id = ac_id,
-    ip = client_ip,
-    chksum = chksum,
-    info = info,
-    n = n,
-    type = Type,
-}
-r=curl_get_params(srun_portal_api,srun_portal_params)
-print(r)
+function get_info(ip, token)
+    local info_temp = string.format(
+        '{"username":"%s","password":"%s","ip":"%s","acid":"%s","enc_ver":"%s"}',
+        username, password, ip, ac_id, enc
+    ):gsub(" ", "")
+    return "{SRBX1}" .. base64_encode(get_xencode(info_temp, token))
+end
+
+function get_chksum(token, hmd5, ip, info)
+    local chkstr = token ..
+        username .. token .. hmd5 .. token .. ac_id .. token .. ip .. token .. n .. token .. Type .. token .. info
+    return get_sha1(chkstr)
+end
+
+function login()
+    print("开始登录流程")
+    local challengResult = curl_get(get_challenge_api)
+
+    local client_ip = challengResult:match('"client_ip":"(.-)"')
+    if client_ip == nil then
+        print("IP获取失败")
+        return
+    else
+        print("登录IP：" .. client_ip)
+    end
+    local token = challengResult:match('"challenge":"(.-)"')
+    if token == nil then
+        print("token获取失败!")
+        return
+    else
+        print("本次token：" .. token)
+    end
+
+    local info = get_info(client_ip, token)
+    local hmd5 = get_hmac_md5(password, token)
+    local chksum = get_chksum(token, hmd5, client_ip, info)
+    local srun_portal_params = {
+        callback = 'a',
+        action = 'login',
+        username = username,
+        password = '{MD5}' .. hmd5,
+        ac_id = ac_id,
+        ip = client_ip,
+        chksum = chksum,
+        info = info,
+        n = n,
+        type = Type,
+    }
+    local result = curl_get_params(srun_portal_api, srun_portal_params)
+    print("登录结果：" .. result:match('"suc_msg":"(.-)"'))
+    print("登录结束")
+end
+
+login()
