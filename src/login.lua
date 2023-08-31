@@ -239,4 +239,19 @@ function login()
     print("登录结束")
 end
 
-login()
+function test_network()
+    local url = "http://connect.rom.miui.com/generate_204"
+    return execute(string.format('wget --timeout=3 -qO- "%s" --user-agent="%s"', url, UA)) == ""
+end
+
+function main()
+    local result = test_network()
+    if result then
+        print("网络已连接")
+    else
+        print("网络断开")
+        login()
+    end
+end
+
+main()
