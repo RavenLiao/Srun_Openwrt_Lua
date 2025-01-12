@@ -3,11 +3,12 @@
 -- 基本参数
 local username = ""
 local password = ""
-local base_url = "http://10.248.98.2"
+-- 假设你的认证url是"http://172.16.8.6/srun_portal_pc?ac_id=1&theme=basic2",则base_url为"http://172.16.8.6"(不包含/), ac_id为"1"
+local base_url = ""
+local ac_id = '1'
 
 -- 其他参数，一般不需要调整
 local n = '200'
-local ac_id = '1'
 local enc = "srun_bx1"
 local Type = '1'
 local get_challenge_api = base_url .. "/cgi-bin/get_challenge?callback=a&username=" .. username
