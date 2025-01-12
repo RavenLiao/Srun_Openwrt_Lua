@@ -235,7 +235,12 @@ function login()
         type = Type,
     }
     local result = curl_get_params(srun_portal_api, srun_portal_params)
-    print("登录结果：" .. result:match('"suc_msg":"(.-)"'))
+    local suc_msg = result:match('"suc_msg":"(.-)"')
+    if suc_msg then
+        print("登录结果：" .. suc_msg)
+    else
+        print("登录异常，返回内容：" .. result)
+    end
     print("登录结束")
 end
 
